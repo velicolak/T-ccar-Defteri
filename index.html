@@ -63,7 +63,7 @@ let ref,tm;
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
 if(ref){clearTimeout(tm);tm=setTimeout(()=>ref.set(db).catch(()=>{}),400)}};
 const uid=()=>String(Date.now()+Math.random());
-const tl=n=>'₺'+Number(n).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const tl=n=>{n=Number(n);return (n<-0.005?'−':'')+'₺'+Math.abs(n).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const kalan=m=>m.led.reduce((a,e)=>a+(e.type==='is'?e.amount:-e.amount),0);
 const fd=d=>d.split('-').reverse().join('.');
@@ -76,13 +76,14 @@ const wa=t=>{let d=t.replace(/\D/g,'');if(d[0]=='0')d='90'+d.slice(1);else if(d.
 const go=(x,id)=>{v=x;if(id)cur=id;render();scrollTo(0,0)};
 const M=()=>db.mus.find(m=>m.id===cur);
 const bi=s=>(s&&s.birim)||'adet';
+const irows=(a,c)=>a.map(x=>`<div class="item" ${/^[exg]:/.test(x.id||'')?'data-lp="'+x.id+'"':''}><div class="line"></div><div class="grow"><b>${esc(x.n)}</b><div class="mu">${fd(x.d)}</div></div><b class="${x.c||c}">${tl(x.t)}</b><button class="x" onclick="silI('${x.id}')">×</button></div>`).join('')||'<p class="mu">Bu dönemde kayıt yok.</p>';
 const npend=()=>db.sp.filter(o=>!o.done).length+db.ts.filter(o=>!o.done).length;
 const inc=id=>db.ts.filter(o=>!o.done&&o.sid===id).reduce((a,o)=>a+o.adet,0);
 const Tt=()=>db.ted.find(x=>x.id===cur);
 const own=id=>db.mus.find(m=>m.led.some(x=>x.id===id))||db.ted.find(m=>m.led.some(x=>x.id===id));
 const rowsL=(m,a)=>m.led.slice().reverse().map(e=>`<div class="item" data-lp="e:${e.id}"><div class="line" style="background:${e.type==='is'?'var(--or)':'var(--grn)'}"></div>
 <div class="grow"><b>${e.type==='is'?a:'Ödeme'}</b> <span class="mu">· ${fd(e.date)}</span><div class="mu">${esc(e.desc||'-')}${e.vade?' · Vade: '+fd(e.vade):''}</div></div>
-<b class="${e.type==='is'?'red':'grn'}">${e.type==='is'?'':'−'}${tl(e.amount)}</b><button class="x" onclick="delE('${e.id}')">×</button></div>`).join('');
+<b class="${e.type==='is'?'red':'grn'}">${e.type==='is'?(a==='Alış'?'−':''):(a==='Alış'?'+':'−')}${tl(e.amount)}</b><button class="x" onclick="delE('${e.id}')">×</button></div>`).join('');
 const H=t=>`<h3 style="font-size:15px;margin:14px 0 8px">${t}</h3>`;
 const msg=m=>{const x=acik(m)[0];return `Merhaba ${m.isim}, ${tl(kalan(m))} tutarında bakiyeniz bulunmaktadır.${x?' Ödeme tarihi: '+fd(x.e.vade)+'.':''} İyi günler.`};
 const rtBar=()=>`<div class="seg" style="margin-bottom:12px">${[['kar','Kâr'],['satis','Satış'],['alis','Alış'],['gider','Gider'],['borc','Borç']].map(([k,t])=>`<button class="${rt===k?'on':''}" onclick="rt='${k}';render()">${t}</button>`).join('')}</div>`;
@@ -158,7 +159,7 @@ function vSekle(){return `<div class="card"><form onsubmit="return addAdet(this)
 <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="pesin" style="width:auto"> Peşin ödendi</label>
 <button class="b">Stoğa Ekle</button></form></div>`}
 
-const YEDEK='<div class="seg" style="margin-bottom:12px"><button onclick="yedekIn()">Yedek indir</button><button onclick="yedekYukle.click()">Yedek yükle</button></div><input type="file" id="yedekYukle" accept="application/json,.json" hidden onchange="yedekAl(this)">';
+const YEDEK='<div class="seg" style="margin-bottom:12px"><button onclick="yedekIn()">Yedek indir</button><button onclick="yedekYukle.click()">Yedek yükle</button></div><input type="file" id="yedekYukle" accept="application/json,.json" hidden onchange="yedekAl(this)"><p class="mu np" style="margin-top:12px">Sürüm 2026.10.15-5</p>';
 async function yedekIn(){
   const data=JSON.stringify(db),filename='tuccar-defteri-yedek-'+today()+'.json';
   try{const d=window.claude&&await claude.use('downloads');if(d){await d.save({filename,data});return}}catch(e){return}
@@ -180,21 +181,27 @@ function vKar(){
       else{L=7;for(let x=new Date(a.getFullYear(),a.getMonth(),1);x<=b;x.setMonth(x.getMonth()+1))add(x)}}}
   const map={};ks.forEach((k,i)=>{ks[i]=k.slice(0,L);map[ks[i]]={t:0,k:0,a:0,g:0,p:0}});
   const inR=d=>kt!=='ar'||(d>=r1&&d<=r2),ps={},pa={};
-  db.mus.forEach(m=>m.led.filter(e=>e.type==='is'&&inR(e.date)).forEach(e=>{const c=map[e.date.slice(0,L)];if(!c)return;
-    const s=db.stok.find(x=>x.id===e.sid),q=e.sid||'-';c.t+=e.amount;
-    if(e.sid)c.k+=e.amount-(e.maliyet??e.adet*((s&&s.alis)||0));
-    const p=ps[q]=ps[q]||{n:s?s.ad:e.sid?'(silinmiş ürün)':'Stoksuz satışlar',u:bi(s),a:0,t:0};p.a+=e.adet||0;p.t+=e.amount}));
+  db.mus.forEach(m=>{const qu=m.led.filter(e=>e.type==='is').sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{const s=db.stok.find(x=>x.id===e.sid);return {e,s,rem:e.amount,r:e.sid?(e.amount-(e.maliyet??e.adet*((s&&s.alis)||0)))/e.amount:0}});
+    m.led.filter(e=>e.type==='odeme').sort((a,b)=>a.date.localeCompare(b.date)).forEach(p=>{let rem=p.amount;const c=inR(p.date)&&map[p.date.slice(0,L)];
+      while(rem>0.005&&qu.length){const q=qu[0],u=Math.min(rem,q.rem);rem-=u;q.rem-=u;
+        if(c){c.k+=u*q.r;const key=q.e.sid||'-',o=ps[key]=ps[key]||{n:q.s?q.s.ad:q.e.sid?'(silinmiş ürün)':'Stoksuz satışlar',u:bi(q.s),a:0,t:0};o.a+=(q.e.adet||0)*u/q.e.amount;o.t+=u}
+        if(q.rem<=0.005)qu.shift()}
+      if(c)c.t+=p.amount})});
   db.sh.filter(h=>inR(h.date)).forEach(h=>{const c=map[h.date.slice(0,L)];if(!c)return;const s=db.stok.find(x=>x.id===h.sid);
     c.a+=h.adet*h.alis;const p=pa[h.sid]=pa[h.sid]||{n:s?s.ad:'(silinmiş ürün)',u:bi(s),a:0,t:0,mx:0};p.a+=h.adet;p.t+=h.adet*h.alis;p.mx=Math.max(p.mx,h.alis)});
   const gl=db.gd.filter(x=>inR(x.date)&&map[x.date.slice(0,L)]).sort((a,b)=>b.date.localeCompare(a.date));
   gl.forEach(x=>{map[x.date.slice(0,L)].g+=x.tutar});
   const pay=[];
   db.ted.forEach(t=>t.led.filter(e=>e.type==='odeme').forEach(e=>pay.push({d:e.date,t:e.amount,id:'e:'+e.id,n:'Alış ödemesi · '+t.isim+(e.desc&&e.desc!=='Peşin ödeme'&&e.desc!=='Ödendi'?' · '+e.desc:'')})));
-  db.alim.filter(a=>a.odendi).forEach(a=>{const h=db.sh.find(x=>x.id===a.gid);pay.push({d:a.otar||(h&&h.date)||a.vade,t:a.adet*a.alis,n:'Alış ödemesi · '+a.ad})});
-  db.sh.filter(h=>!db.ted.some(t=>t.id===h.tid)&&!db.alim.some(a=>a.gid===h.id)).forEach(h=>{const s=db.stok.find(x=>x.id===h.sid);pay.push({d:h.date,t:h.adet*h.alis,n:'Alış · '+(s?s.ad:'')})});
+  db.alim.filter(a=>a.odendi).forEach(a=>{const h=db.sh.find(x=>x.id===a.gid);pay.push({d:a.otar||(h&&h.date)||a.vade,t:a.adet*a.alis,id:'a:'+a.id,n:'Alış ödemesi · '+a.ad})});
+  db.sh.filter(h=>!db.ted.some(t=>t.id===h.tid)&&!db.alim.some(a=>a.gid===h.id)).forEach(h=>{const s=db.stok.find(x=>x.id===h.sid);pay.push({d:h.date,t:h.adet*h.alis,id:'g:'+h.id,n:'Alış · '+(s?s.ad:'')})});
   const pl=pay.filter(x=>inR(x.d)&&map[x.d.slice(0,L)]);pl.forEach(x=>{map[x.d.slice(0,L)].p+=x.t});
   ks.forEach(k=>{const c=map[k];c.gt=c.p+c.g;c.n=c.t-c.gt});
   const gr=[...gl.map(x=>({d:x.date,t:x.tutar,n:x.desc,id:'x:'+x.id})),...pl].sort((a,b)=>b.d.localeCompare(a.d));
+  const dsc=(a,b)=>b.d.localeCompare(a.d),ok2=d=>inR(d)&&map[d.slice(0,L)];
+  const sl=db.mus.flatMap(m=>m.led.filter(e=>e.type==='odeme'&&ok2(e.date)).map(e=>({d:e.date,t:e.amount,id:'e:'+e.id,n:m.isim+' · '+(e.desc||'Ödeme')}))).sort(dsc);
+  const ah=db.sh.filter(h=>ok2(h.date)).map(h=>{const s=db.stok.find(x=>x.id===h.sid),t=db.ted.find(x=>x.id===h.tid);return {d:h.date,t:-h.adet*h.alis,c:'red',id:'g:'+h.id,n:(s?s.ad:'(silinmiş ürün)')+' · '+h.adet+' '+bi(s)+(t?' · '+t.isim:'')}}).sort(dsc);
+  const all=[...sl.map(x=>({...x,n:'Satış · '+x.n,c:'grn'})),...ah.map(x=>({...x,n:'Alış · '+x.n,c:'red'})),...gr.filter(x=>x.id[0]==='x').map(x=>({...x,t:-x.t,n:'Gider · '+x.n,c:'red'}))].sort(dsc);
   const f={kar:'n',satis:'t',alis:'a',gider:'gt'}[rt],col={kar:'var(--or)',satis:'var(--grn)',alis:'#4a7bd0',gider:'#b7791f'}[rt];
   const n=ks.length,vs=ks.map(k=>map[k][f]),hi=Math.max(0,...vs),lo=Math.min(0,...vs),sc=90/((hi-lo)||1),w=300/(n||1),base=5+hi*sc;
   const sm=x=>ks.reduce((a,k)=>a+map[k][x],0),lb=k=>k.split('-').reverse().join('.');
@@ -208,9 +215,10 @@ function vKar(){
 <div class="g3"><div><span class="mu">Satış</span><b>${tl(sm('t'))}</b></div><div><span class="mu">Gider</span><b>${tl(sm('gt'))}</b></div><div><span class="mu">Net kâr</span><b class="${sm('n')<0?'red':'grn'}">${tl(sm('n'))}</b></div></div><div class="mu" style="margin-top:8px">Ödenen alış ${tl(sm('p'))} · Diğer gider ${tl(sm('g'))} · Toplam alım ${tl(sm('a'))} · Brüt kâr ${tl(sm('k'))}</div>
 <svg viewBox="0 0 300 100" style="width:100%;margin-top:10px">${vs.map((x,i)=>`<rect x="${i*w+1}" y="${x>=0?base-x*sc:base}" width="${Math.max(w-2,1)}" height="${Math.abs(x)*sc}" style="fill:${x<0?'var(--red)':col}"/>`).join('')}</svg>
 <div class="sum mu"><span>${n?lb(ks[0]):''}</span><span>${n?lb(ks[n-1]):''}</span></div></div>`+
-  (rt==='satis'?H('Ürüne göre satışlar')+prow(ps,p=>p.a?p.a+' '+p.u:'-'):rt==='alis'?H('Ürüne göre alışlar')+prow(pa,p=>`${p.a} ${p.u} · ort. ${tl(p.t/p.a)} · en yüksek ${tl(p.mx)}`):rt==='gider'?H('Giderler')+(gr.map(x=>`<div class="item" ${x.id?'data-lp="'+x.id+'"':''}><div class="line"></div><div class="grow"><b>${esc(x.n)}</b><div class="mu">${fd(x.d)}</div></div><b class="red">${tl(x.t)}</b></div>`).join('')||'<p class="mu">Bu dönemde gider yok.</p>')+'<p class="mu np">Düzenlemek veya silmek için bir satıra basılı tut.</p>':'')+
+  (rt==='satis'?H('Ürüne göre satışlar')+prow(ps,p=>p.a?+p.a.toFixed(3)+' '+p.u:'-')+H('Tahsilat (satış) kayıtları')+irows(sl,''):rt==='alis'?H('Ürüne göre alışlar')+prow(pa,p=>`${p.a} ${p.u} · ort. ${tl(p.t/p.a)} · en yüksek ${tl(p.mx)}`)+H('Alış kayıtları')+irows(ah,''):rt==='gider'?H('Giderler')+(irows(gr,'red')||'<p class="mu">Bu dönemde gider yok.</p>')+'<p class="mu np">Düzenlemek veya silmek için bir satıra basılı tut.</p>':'')+
+  (rt==='kar'?H('İşlemler')+irows(all,''):'')+
   (rt==='kar'?'':H('Dönemlere göre'))+drow+
-  '<p class="mu">Brüt kâr = satış tutarı − alış maliyeti (yalnızca stoktan ürün seçilerek girilen satışlar). Net kâr = satış − gider. Gider = elle girilen giderler + ödenen stok alışları (vadeli alış, ödenince gider olur). Brüt kâr = satış − satılan malın alış maliyeti. Alış raporu, Stok Ekle ile girilen alımlardan oluşur.</p>'+YEDEK}
+  '<p class="mu">Satış = tahsil edilen tutar: vadeli satış, ödeme alınınca satış olarak yazılır (stok satış anında düşer). Brüt kâr = tahsil edilen satışın alış maliyetine göre kârı (yalnızca stoktan ürün seçilerek girilen satışlar). Net kâr = satış − gider. Gider = elle girilen giderler + ödenen stok alışları (vadeli alış, ödenince gider olur). Brüt kâr = satış − satılan malın alış maliyeti. Alış raporu, Stok Ekle ile girilen alımlardan oluşur.</p>'+YEDEK}
 function vBorc(){
   const T=today(),al=db.mus.filter(m=>kalan(m)>0).sort((a,b)=>kalan(b)-kalan(a)),ps=db.alim.filter(a=>!a.odendi).sort((a,b)=>a.vade<b.vade?-1:1);
   const ent=db.ted.flatMap(t=>acik(t).map(x=>({t,x}))).sort((a,b)=>a.x.e.vade<b.x.e.vade?-1:1),rest=db.ted.map(t=>({t,r:kalan(t)-acik(t).reduce((a,x)=>a+x.left,0)})).filter(o=>o.r>0.005);
@@ -282,7 +290,7 @@ function rowsT(){
   return l.map(t=>{const k=kalan(t);return `
 <div class="item" data-lp="t:${t.id}"><div class="line"></div>
 <div class="grow" onclick="go('tdetail','${t.id}')"><b>${esc(t.isim)}</b>
-<div class="mu ${k>0?'red':''}">${k>0?'Borcumuz: '+tl(k):'Borç yok'}</div>${vd(t)}</div>
+<div class="mu ${k>0?'red':''}">${k>0?'Bakiye: '+tl(-k):k<0?'Bakiye: +'+tl(-k):'Bakiye yok'}</div>${vd(t)}</div>
 ${t.tel?`<a class="ic" href="tel:${esc(t.tel)}">📞</a><a class="ic" href="${wa(t.tel)}" target="_blank" rel="noopener">💬</a>`:''}
 <span class="mu" onclick="go('tdetail','${t.id}')">›</span></div>`}).join('')||'<p class="mu">Tedarikçi bulunamadı. Eklemek için sağ üstteki + kullan.</p>'}
 function vTList(){return `<input placeholder="Tedarikçi ara (isim / telefon)" value="${esc(tq)}" oninput="tq=this.value;tlst.innerHTML=rowsT()" style="margin-bottom:8px">
@@ -296,7 +304,7 @@ function delT(){if(confirm('Tedarikçi ve tüm kayıtları silinsin mi?')){db.te
 function vTDetail(){const t=Tt(),al=t.led.filter(e=>e.type==='is').reduce((a,e)=>a+e.amount,0),od=t.led.filter(e=>e.type==='odeme').reduce((a,e)=>a+e.amount,0);
   return `<div class="pr"><h2 style="margin:0">Tüccar Defteri - Tedarikçi Bakiye Raporu</h2><div>${esc(t.isim)} · ${esc(t.tel)} · ${fd(today())}</div></div>
 <div class="card"><div class="mu" style="margin-bottom:8px">${esc(t.tel)}</div>
-<div class="sum"><div><span class="mu">Toplam Alış</span><b>${tl(al)}</b></div><div><span class="mu">Ödenen</span><b class="grn">${tl(od)}</b></div><div><span class="mu">Kalan Borç</span><b class="${al-od>0?'red':''}">${tl(al-od)}</b></div></div></div>
+<div class="sum"><div><span class="mu">Toplam Alış</span><b>${tl(-al)}</b></div><div><span class="mu">Ödenen</span><b class="grn">${od>0?'+':''}${tl(od)}</b></div><div><span class="mu">Bakiye</span><b class="${od-al<0?'red':'grn'}">${tl(od-al)}</b></div></div></div>
 <button class="b np" style="width:100%;margin-bottom:12px" onclick="print()">🖨 Yazdır / PDF olarak kaydet</button>`+rowsL(t,'Alış')+'<p class="mu np">Alışlar, Stok Ekle ekranında tedarikçi seçilince otomatik yazılır. Düzenlemek veya silmek için bir satıra basılı tut.</p>'}
 function vTPay(){return `<div class="card"><form onsubmit="return addPay(this)"><input name="date" type="date" value="${today()}" required><input name="tutar" type="number" step="any" placeholder="Ödenen tutar (₺)" required><input name="desc" placeholder="Not"><button class="b">Kaydet</button></form></div>`}
 function addPay(f){const t=+f.tutar.value;if(!(t>0)){alert('Tutar girin');return false}
@@ -370,12 +378,19 @@ function saveEd(f){
     if(e.type==='is'){if(f.vade.value)e.vade=f.vade.value;else delete e.vade}
     o.led.filter(x=>x.pe===e.id).forEach(x=>{x.amount=t;x.date=e.date})}
   ed=null;md.innerHTML='';save();render();return false}
+function delG(id){const h=db.sh.find(x=>x.id===id),s=db.stok.find(x=>x.id===h.sid);
+  if(s)s.adet-=h.adet;db.sh=db.sh.filter(x=>x.id!==h.id);db.alim=db.alim.filter(x=>x.gid!==h.id);reAlis(h.sid);dropT(h)}
+function silI(k){const t=k[0],id=k.slice(2);
+  if(t==='e')return delE(id);
+  if(t==='a'){if(!confirm('Ödeme geri alınsın mı? Alım tekrar ödenecekler listesine döner.'))return;const a=db.alim.find(x=>x.id===id);a.odendi=false;delete a.otar}
+  else if(t==='x'){if(!confirm('Gider silinsin mi?'))return;db.gd=db.gd.filter(x=>x.id!==id)}
+  else{if(!confirm('Stok girişi silinsin mi? Stok miktarı da düşer.'))return;delG(id)}
+  save();render()}
 function delEd(){if(!confirm('Kayıt silinsin mi?'))return;
   if(ed.t==='q')db.ts=db.ts.filter(x=>x.id!==ed.id);
   else if(ed.t==='o')db.sp=db.sp.filter(x=>x.id!==ed.id);
   else if(ed.t==='x')db.gd=db.gd.filter(x=>x.id!==ed.id);
-  else if(ed.t==='g'){const h=db.sh.find(x=>x.id===ed.id),s=db.stok.find(x=>x.id===h.sid);
-    if(s)s.adet-=h.adet;db.sh=db.sh.filter(x=>x.id!==h.id);db.alim=db.alim.filter(x=>x.gid!==h.id);reAlis(h.sid);dropT(h)}
+  else if(ed.t==='g')delG(ed.id);
   else delE(ed.id,1);
   ed=null;md.innerHTML='';save();render()}
 function delS(id){if(confirm('Silinsin mi?')){db.stok=db.stok.filter(x=>x.id!==id);save();render()}}
